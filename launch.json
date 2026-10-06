@@ -1,0 +1,14 @@
+{
+  "kind": "evm_contracts",
+  "contracts": [
+    {
+      "contract": "FrenArtChunk1",
+      "constructorArgs": []
+    },
+    {
+      "contract": "FrenArtChunk2",
+      "constructorArgs": []
+    }
+  ],
+  "notes": "IMD6900 Frens on-chain art, launch 1 of 3. Deploy FrenArtChunk1 followed by FrenArtChunk2 from src/FrenArtChunks.sol, each with no constructor arguments. Their runtime code is a STOP byte followed by the original generated art data, preserving the exact code hashes in src/FrenArtIndex.sol. The remaining chunks and FrenRenderer are deployed in launches 2 and 3 as described in README.md."
+}
