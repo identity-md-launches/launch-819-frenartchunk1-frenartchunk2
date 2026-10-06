@@ -246,4 +246,61 @@ contract FrenRendererTest is Test {
         new FrenRenderer(chunks[0], chunks[1], chunks[2], chunks[3], chunks[4], chunks[5], address(0xBEEF));
         assertEq(r.chunk7(), chunks[6]);
     }
+
+    /// @dev Exercise each launch-1 argument independently, with all six other arguments valid.
+    function test_RejectsMissingOrDuplicatedLaunch1Chunks() public {
+        for (uint256 i; i < 2; ++i) {
+            address original = chunks[i];
+            chunks[i] = address(0);
+            _assertBadLaunch1Art();
+            chunks[i] = address(0xBEEF);
+            _assertBadLaunch1Art();
+            chunks[i] = chunks[1 - i];
+            _assertBadLaunch1Art();
+            chunks[i] = original;
+        }
+    }
+
+    /// @dev A nonzero XOR changes exactly one byte without changing the code length. This catches
+    ///      validators that check only size, the STOP prefix, or part of either launch-1 payload.
+    /// forge-config: default.fuzz.runs = 256
+    function testFuzz_RejectsAnyChangedLaunch1Byte(uint256 offsetSeed, uint8 changeSeed) public {
+        uint8 change = uint8(bound(uint256(changeSeed), 1, 255));
+        for (uint256 i; i < 2; ++i) {
+            bytes memory original = chunks[i].code;
+            bytes memory changed = chunks[i].code;
+            uint256 offset = bound(offsetSeed, 0, changed.length - 1);
+            changed[offset] = bytes1(uint8(changed[offset]) ^ change);
+            vm.etch(chunks[i], changed);
+            _assertBadLaunch1Art();
+            vm.etch(chunks[i], original);
+        }
+    }
+
+    function test_RejectsLaunch1PrefixTailTruncationAndAppendedData() public {
+        for (uint256 i; i < 2; ++i) {
+            bytes memory original = chunks[i].code;
+            bytes memory changed = chunks[i].code;
+            changed[0] = 0x01;
+            vm.etch(chunks[i], changed);
+            _assertBadLaunch1Art();
+            changed[0] = original[0];
+            changed[changed.length - 1] = bytes1(uint8(changed[changed.length - 1]) ^ 1);
+            vm.etch(chunks[i], changed);
+            _assertBadLaunch1Art();
+            vm.etch(chunks[i], bytes.concat(original, hex"00"));
+            _assertBadLaunch1Art();
+            assembly ("memory-safe") {
+                mstore(changed, sub(mload(changed), 1))
+            }
+            vm.etch(chunks[i], changed);
+            _assertBadLaunch1Art();
+            vm.etch(chunks[i], original);
+        }
+    }
+
+    function _assertBadLaunch1Art() internal {
+        vm.expectRevert(FrenRenderer.BadArt.selector);
+        new FrenRenderer(chunks[0], chunks[1], chunks[2], chunks[3], chunks[4], chunks[5], chunks[6]);
+    }
 }
