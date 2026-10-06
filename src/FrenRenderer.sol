@@ -108,7 +108,10 @@ contract FrenRenderer {
             '[{"trait_type":"Character","value":"',
             _name(combo & 3, "Cyborg Pepe|Mumu|Bobo"),
             '"},{"trait_type":"Face","value":"',
-            _name((combo >> 2) & 15, "Classic|Happy|Angry|Feels Bad|Grinding|Chill|Grumpy|Giga Happy|Cooked|Comfy|Special|Scientist|Laser Eyes"),
+            _name(
+                (combo >> 2) & 15,
+                "Classic|Happy|Angry|Feels Bad|Grinding|Chill|Grumpy|Giga Happy|Cooked|Comfy|Special|Scientist|Laser Eyes"
+            ),
             '"},{"trait_type":"Eye","value":"',
             _name((combo >> 6) & 3, "Green|Red|Cyan|Gold"),
             '"},{"trait_type":"Coat","value":"',
@@ -142,7 +145,9 @@ contract FrenRenderer {
             if (j == b.length || b[j] == "|") {
                 if (k == i) {
                     bytes memory out = new bytes(j - start);
-                    for (uint256 m; m < out.length; ++m) out[m] = b[start + m];
+                    for (uint256 m; m < out.length; ++m) {
+                        out[m] = b[start + m];
+                    }
                     return string(out);
                 }
                 ++k;
@@ -190,11 +195,15 @@ contract FrenRenderer {
         _le(out, 28, 8, 2);
         _le(out, 34, N * N, 4);
         _le(out, 46, 256, 4);
-        for (uint256 i; i < 1024; ++i) out[54 + i] = pal[i];
+        for (uint256 i; i < 1024; ++i) {
+            out[54 + i] = pal[i];
+        }
         for (uint256 y; y < N; ++y) {
             uint256 src = (N - 1 - y) * N;
             uint256 dst = 54 + 1024 + y * N;
-            for (uint256 x; x < N; ++x) out[dst + x] = cv[src + x];
+            for (uint256 x; x < N; ++x) {
+                out[dst + x] = cv[src + x];
+            }
         }
     }
 
@@ -211,7 +220,9 @@ contract FrenRenderer {
         uint256 shirt = (combo >> 10) & 7;
         uint256 eye = (combo >> 6) & 3;
         if (coat > 2 || shirt > 5) revert Missing();
-        for (uint256 i; i < 5; ++i) slot[i] = uint8(t[8 + coat * 5 + i]);
+        for (uint256 i; i < 5; ++i) {
+            slot[i] = uint8(t[8 + coat * 5 + i]);
+        }
         slot[5] = uint8(t[23 + shirt]);
         slot[6] = uint8(t[eye * 2]);
         slot[7] = uint8(t[eye * 2 + 1]);
@@ -229,7 +240,10 @@ contract FrenRenderer {
     }
 
     /// @dev `mono`: when not 0, every pixel the layer covers takes that one colour (a silhouette)
-    function _draw(bytes memory cv, bytes memory d, int256 dx, int256 dy, uint8[8] memory slot, uint8 mono) internal pure {
+    function _draw(bytes memory cv, bytes memory d, int256 dx, int256 dy, uint8[8] memory slot, uint8 mono)
+        internal
+        pure
+    {
         uint256 x0 = uint8(d[0]);
         uint256 y0 = uint8(d[1]);
         uint256 w = uint8(d[2]);
@@ -250,7 +264,9 @@ contract FrenRenderer {
                     if (a < 0) a = 0;
                     if (b > int256(N)) b = int256(N);
                     uint256 base = uint256(yy) * N;
-                    for (int256 xx = a; xx < b; ++xx) cv[base + uint256(xx)] = bytes1(uint8(c));
+                    for (int256 xx = a; xx < b; ++xx) {
+                        cv[base + uint256(xx)] = bytes1(uint8(c));
+                    }
                 }
                 x += n;
             }
@@ -258,7 +274,9 @@ contract FrenRenderer {
     }
 
     function _le(bytes memory b, uint256 at, uint256 v, uint256 n) internal pure {
-        for (uint256 i; i < n; ++i) b[at + i] = bytes1(uint8(v >> (8 * i)));
+        for (uint256 i; i < n; ++i) {
+            b[at + i] = bytes1(uint8(v >> (8 * i)));
+        }
     }
 
     /* ── reading the art back (see FrenArtIndex) ── */
@@ -276,6 +294,24 @@ contract FrenRenderer {
             len := and(shr(216, w), 0xffff) // bytes 3-4
         }
         address p = [chunk1, chunk2, chunk3, chunk4, chunk5, chunk6, chunk7][c];
+        if (FrenArtIndex.PUSH_ENCODED & (1 << c) != 0) {
+            // STOP, then groups of PUSHn + n original bytes (n = 32 except the last group).
+            // INDEX offsets refer to decoded bytes, so reads may start or end inside a group.
+            if (len != 0 && p.code.length < 2 + off + len + (off + len - 1) / 32) revert Missing();
+            data = new bytes(len);
+            uint256 written;
+            while (written < len) {
+                uint256 at = off + written;
+                uint256 n = 32 - at % 32;
+                if (n > len - written) n = len - written;
+                uint256 source = 2 + at + at / 32;
+                assembly ("memory-safe") {
+                    extcodecopy(p, add(add(data, 32), written), source, n)
+                }
+                written += n;
+            }
+            return data;
+        }
         if (p.code.length < 1 + off + len) revert Missing();
         data = new bytes(len);
         assembly ("memory-safe") {
